@@ -1,20 +1,109 @@
+
 #include "PluginEditor.h"
 
 namespace
 {
-    // Цвета и названия шести модулей
+    const juce::Colour bg(0xffe8edf5);
+    const juce::Colour dark(0xff101522);
+    const juce::Colour text(0xffeaf2ff);
+    const juce::Colour muted(0xff91a0b6);
+
+    const juce::Colour colors[] =
+    {
+        juce::Colour(0xffff4da6),
+        juce::Colour(0xff42d9ff),
+        juce::Colour(0xffa45cff),
+        juce::Colour(0xffffd83d),
+        juce::Colour(0xff49d6a3),
+        juce::Colour(0xff7aa7ff)
+    };
+
+    const char* modules[] =
+    {
+        "01  DYNAMICS",
+        "02  TONE",
+        "03  SPACE",
+        "04  SFX",
+        "05  GENERATOR",
+        "06  ANALYZER"
+    };
 }
 
-// Конструктор редактора
-ENGINEGURAudioProcessorEditor::ENGINEGURAudioProcessorEditor(...)
+ENGINEGURAudioProcessorEditor::ENGINEGURAudioProcessorEditor(
+    ENGINEGURAudioProcessor& p)
+    : juce::AudioProcessorEditor(&p),
+      processor(p)
 {
-    // Инициализация интерфейса
+    setSize(1180, 760);
+
+    title.setText("ENGINEGURU", juce::dontSendNotification);
+    title.setFont(juce::Font(juce::FontOptions(27, juce::Font::bold)));
+    title.setColour(juce::Label::textColourId, colors[1]);
+    addAndMakeVisible(title);
+
+    subtitle.setText(
+        "SAMPLE-BASED SOUND DESIGN ENGINE / 0.2.0",
+        juce::dontSendNotification);
+    subtitle.setColour(juce::Label::textColourId, muted);
+    addAndMakeVisible(subtitle);
+
+    status.setText(
+        processor.getReferenceName(),
+        juce::dontSendNotification);
+    status.setColour(juce::Label::textColourId, text);
+    addAndMakeVisible(status);
+
+    for (auto* b : { &loadButton, &generateButton, &exportButton })
+    {
+        b->addListener(this);
+        b->setColour(
+            juce::TextButton::buttonColourId,
+            juce::Colour(0xff202a3c));
+        b->setColour(
+            juce::TextButton::textColourOffId,
+            text);
+        addAndMakeVisible(b);
+    }
+
+    const juce::StringArray types
+    {
+        "Auto", "Bass / 808", "Kick", "Snare",
+        "Clap", "Closed Hat", "Open Hat",
+        "Percussion", "Other"
+    };
+
+    for (int i = 0; i < types.size(); ++i)
+        typeBox.addItem(types[i], i + 1);
+
+    typeBox.setSelectedId(1);
+    addAndMakeVisible(typeBox);
+
+    for (auto* s : { &similarity, &amount })
+    {
+        s->setSliderStyle(juce::Slider::LinearHorizontal);
+        s->setTextBoxStyle(
+            juce::Slider::TextBoxRight, false, 55, 20);
+        s->setRange(0.0, 1.0, 0.01);
+        addAndMakeVisible(s);
+    }
+
+    similarity.setValue(0.72);
+    amount.setValue(0.22);
 }
 
-// Рисование интерфейса
 void ENGINEGURAudioProcessorEditor::paint(juce::Graphics& g)
 {
-    // Фон и верхняя панель
+    g.fillAll(bg);
+
+    auto header = juce::Rectangle<float>(
+        18.0f, 14.0f,
+        float(getWidth() - 36), 94.0f);
+
+    g.setColour(dark);
+    g.fillRoundedRectangle(header, 13.0f);
+
+    g.setColour(juce::Colour(0xff29364c));
+    g.drawRoundedRectangle(header, 13.0f, 1.0f);
 
     const int margin = 18;
     const int gap = 12;
@@ -24,33 +113,234 @@ void ENGINEGURAudioProcessorEditor::paint(juce::Graphics& g)
 
     for (int i = 0; i < 6; ++i)
     {
-        int x = margin + (i % 3) * (w + gap);
-        int y = top + (i / 3) * (h + gap);
+        const int x = margin + (i % 3) * (w + gap);
+        const int y = top + (i / 3) * (h + gap);
 
-        juce::Rectangle<float> r{
+        // Исправлено: фигурные скобки
+        juce::Rectangle<float> r
+        {
             float(x), float(y), float(w), float(h)
         };
 
         g.setColour(dark);
-        g.fillRoundedRectangle(r, 12);
+        g.fillRoundedRectangle(r, 12.0f);
 
         g.setColour(juce::Colour(0xff2b374b));
-        g.drawRoundedRectangle(r, 12, 1);
+        g.drawRoundedRectangle(r, 12.0f, 1.0f);
 
-        // Остальная отрисовка модулей
+        g.setColour(colors[i]);
+        g.fillRoundedRectangle(
+            r.removeFromTop(4.0f), 2.0f);
+
+        g.setColour(colors[i].withAlpha(0.10f));
+        g.fillEllipse(
+            float(x + w - 126),
+            float(y + 52),
+            100.0f,
+            100.0f);
+
+        g.setColour(colors[i]);
+        g.setFont(juce::Font(
+            juce::FontOptions(14.0f, juce::Font::bold)));
+
+        g.drawText(
+            modules[i],
+            x + 18, y + 16, w - 36, 24,
+            juce::Justification::left);
+
+        for (int k = 0; k < 2; ++k)
+        {
+            const float cx = float(x + 78 + k * 132);
+            const float cy = float(y + 142);
+
+            g.setColour(juce::Colour(0xff263247));
+            g.fillEllipse(cx - 43, cy - 43, 86, 86);
+
+            g.setColour(colors[i].withAlpha(0.72f));
+            g.drawEllipse(cx - 43, cy - 43, 86, 86, 2.0f);
+
+            g.setColour(juce::Colour(0xffdce7f7));
+            g.drawEllipse(cx - 27, cy - 27, 54, 54, 1.0f);
+
+            g.setFont(11.0f);
+            g.drawText(
+                k == 0 ? "CONTROL A" : "CONTROL B",
+                int(cx - 55), y + 194, 110, 18,
+                juce::Justification::centred);
+        }
     }
 
-    // Нижние подписи
+    g.setColour(muted);
+    g.setFont(12.0f);
+
+    g.drawText(
+        "INPUT / PROCESS / OUTPUT",
+        22, getHeight() - 24, 360, 16,
+        juce::Justification::left);
+
+    g.drawText(
+        "16 VARIATIONS / WAV 24-BIT",
+        getWidth() - 300, getHeight() - 24,
+        276, 16,
+        juce::Justification::right);
+
+    g.setColour(text);
+
+    g.drawText(
+        "COMPRESSOR / DE-ESSER",
+        38, 190, 300, 20,
+        juce::Justification::centred);
+
+    g.drawText(
+        "4-BAND EQ / FILTERS",
+        438, 190, 300, 20,
+        juce::Justification::centred);
+
+    g.drawText(
+        "REVERB / DELAY",
+        838, 190, 280, 20,
+        juce::Justification::centred);
+
+    g.drawText(
+        "PITCH / STEREO WIDTH",
+        38, 472, 300, 20,
+        juce::Justification::centred);
+
+    g.drawText(
+        "16 VARIATIONS / SIMILARITY / AMOUNT",
+        438, 472, 300, 20,
+        juce::Justification::centred);
+
+    g.drawText(
+        "REFERENCE SAMPLE / ANALYSIS",
+        838, 472, 280, 20,
+        juce::Justification::centred);
+
+    g.setColour(muted);
+
+    g.drawText(
+        "DYNAMICS / TONE / SPACE / SFX DSP NOT YET CONNECTED",
+        26, getHeight() - 48,
+        getWidth() - 52, 18,
+        juce::Justification::centred);
 }
 
-// Изменение размеров
 void ENGINEGURAudioProcessorEditor::resized()
 {
-    // Расположение элементов
+    title.setBounds(38, 24, 270, 38);
+    subtitle.setBounds(40, 64, 380, 20);
+
+    loadButton.setBounds(455, 42, 132, 38);
+    status.setBounds(600, 44, 260, 32);
+
+    generateButton.setBounds(
+        getWidth() - 300, 30, 126, 38);
+
+    exportButton.setBounds(
+        getWidth() - 162, 30, 126, 38);
+
+    typeBox.setBounds(456, 520, 270, 30);
+    similarity.setBounds(456, 560, 270, 32);
+    amount.setBounds(456, 600, 270, 32);
 }
 
-// Обработка кнопок
-void ENGINEGURAudioProcessorEditor::buttonClicked(juce::Button* b)
+void ENGINEGURAudioProcessorEditor::buttonClicked(
+    juce::Button* b)
 {
-    // LOAD / GENERATE / EXPORT
+    if (b == &loadButton)
+    {
+        fileChooser = std::make_unique<juce::FileChooser>(
+            "Choose WAV or AIFF sample",
+            juce::File{},
+            "*.wav;*.aif;*.aiff");
+
+        juce::Component::SafePointer<
+            ENGINEGURAudioProcessorEditor> safe(this);
+
+        fileChooser->launchAsync(
+            juce::FileBrowserComponent::openMode |
+            juce::FileBrowserComponent::canSelectFiles,
+
+            [safe](const juce::FileChooser& chooser)
+            {
+                if (safe == nullptr)
+                    return;
+
+                const auto file = chooser.getResult();
+
+                if (file.existsAsFile())
+                {
+                    if (safe->processor.loadReference(file))
+                    {
+                        safe->status.setText(
+                            safe->processor.getReferenceName(),
+                            juce::dontSendNotification);
+                    }
+                    else
+                    {
+                        safe->status.setText(
+                            "Could not read audio file",
+                            juce::dontSendNotification);
+                    }
+                }
+
+                safe->fileChooser.reset();
+            });
+    }
+    else if (b == &generateButton)
+    {
+        processor.setType(
+            static_cast<eg::SoundType>(
+                typeBox.getSelectedId() - 1));
+
+        processor.parameters.getParameter("similarity")
+            ->setValueNotifyingHost(
+                float(similarity.getValue()));
+
+        processor.parameters.getParameter("amount")
+            ->setValueNotifyingHost(
+                float(amount.getValue()));
+
+        processor.generateVariations();
+
+        status.setText(
+            "16 variations generated",
+            juce::dontSendNotification);
+    }
+    else if (b == &exportButton)
+    {
+        fileChooser = std::make_unique<juce::FileChooser>(
+            "Export selected variation",
+            juce::File::getSpecialLocation(
+                juce::File::userMusicDirectory)
+                .getChildFile("ENGINEGURU_01.wav"),
+            "*.wav");
+
+        juce::Component::SafePointer<
+            ENGINEGURAudioProcessorEditor> safe(this);
+
+        fileChooser->launchAsync(
+            juce::FileBrowserComponent::saveMode |
+            juce::FileBrowserComponent::canSelectFiles,
+
+            [safe](const juce::FileChooser& chooser)
+            {
+                if (safe == nullptr)
+                    return;
+
+                const auto file = chooser.getResult();
+
+                if (file != juce::File{} &&
+                    safe->processor.exportVariation(
+                        safe->selected,
+                        file.withFileExtension("wav")))
+                {
+                    safe->status.setText(
+                        "Exported variation 01",
+                        juce::dontSendNotification);
+                }
+
+                safe->fileChooser.reset();
+            });
+    }
 }
